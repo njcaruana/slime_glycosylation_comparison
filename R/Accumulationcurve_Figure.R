@@ -26,7 +26,7 @@ library(tidyr)
 # MQ_data = read.table("proteinGroups_PNGaseFSL.txt",sep="\t",header=TRUE, row.names = 6)
 #
 # 
-MQ_data = read.table("proteinGroups_PNGaseFSL.txt",sep="\t",header=TRUE,na.strings = "0")
+MQ_data = read.table("../raw_data/proteinGroups_PNGaseFSL.txt",sep="\t",header=TRUE,na.strings = "0")
 
 
 #takes out iBAQ values
