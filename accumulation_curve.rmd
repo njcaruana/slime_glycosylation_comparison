@@ -1,3 +1,25 @@
+---
+title: "Accumulation Curve"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include=FALSE}
+rm(list=ls())
+
+library(ggplot2)
+library(dplyr) # useful for data manipulation
+library(splitstackshape)
+library(tidyr)
+```
+
+## Accumulation Curve for Glycosylated proteins found in PNGaseF samples
+
+
+```{r reading_data, echo=FALSE}
 # General Tips
 #
 # Use whitespace freely in comments and code as it makes things easier to read
@@ -7,12 +29,7 @@
 
 #accumulation curve graph
 
-rm(list=ls())
 
-library(ggplot2)
-library(dplyr) # useful for data manipulation
-library(splitstackshape)
-library(tidyr)
 
 #reads in MQ data
 #
@@ -26,9 +43,11 @@ library(tidyr)
 # MQ_data = read.table("proteinGroups_PNGaseFSL.txt",sep="\t",header=TRUE, row.names = 6)
 #
 # 
-MQ_data = read.table("../raw_data/proteinGroups_PNGaseFSL.txt",sep="\t",header=TRUE,na.strings = "0")
+MQ_data = read.table("raw_data/proteinGroups_PNGaseFSL.txt",sep="\t",header=TRUE,na.strings = "0")
+```
 
 
+```{r filtering, echo=FALSE}
 #takes out iBAQ values
 #
 # This should work however I provide a safer and more convenient way to do this below.
@@ -128,9 +147,10 @@ plot_dataP <- as.data.frame(t(apply(acc_allP,2,cumsum))) %>% gather(sample_num,t
 
 plot_dataNP2 <- aggregate(total_proteins~sample_num,plot_dataNP,mean)
 plot_dataP2 <- aggregate(total_proteins~sample_num,plot_dataP,mean)
+```
 
 
-ggplot(plot_data,aes(x=sample_num,y=total_proteins)) + geom_point()
+```{r plotting, echo=FALSE}
 
 ggplot() + 
   geom_point(data = plot_dataNP2, aes(x=sample_num,y=total_proteins, color = "red")) +
@@ -139,4 +159,4 @@ ggplot() +
   xlab('sample_num') + 
   ylab ('total_proteins')
 
-
+```
