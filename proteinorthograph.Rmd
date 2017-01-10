@@ -1,0 +1,79 @@
+---
+title: "ProteinOrtho Abundance Graph"
+author: "Nikeisha Caruana"
+date: "11 January 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+library(stringr)
+library(dplyr)
+library(splitstackshape)
+```
+
+
+The code below merges two species ProteinGroups.txt files created by MaxQuant, with a ProteinOrtho file from the same two species in order to visualize the abundance of the orthologous proteins between the two species.  
+
+Read in protein orthofiles 
+
+```{r read, include = TRUE}
+proteinortho <-  read.csv("../raw_data_shared/proteinortho_data/slimeglyco_comparison.proteinortho", sep='\t', header = TRUE)
+proteingroups_SL <- read.csv("../raw_data_shared/proteinGroups_PNGaseFSL.txt",sep='\t', header = TRUE)
+proteingroups_SA <- read.csv("../raw_data_shared/proteinGroups_SA.txt",sep='\t', header = TRUE)
+```
+
+Expand protein groups so we have one row per protein.
+```{r expand function, include = TRUE}
+expand_groups <- function(protein_data){
+  group_list = lapply(1:nrow(protein_data),function(ri){
+    prot_ids = unlist(str_split(protein_data[ri,]$Protein.IDs,pattern = ";"))
+    prot_ids = str_match(prot_ids,"lcl\\|(.*)")[,2]
+    prot_ids = str_replace(prot_ids,"_m\\.",replacement = "\\|m\\.")
+    other_cols = protein_data[rep(ri,length(prot_ids)),]
+    data.frame(prot_ids,other_cols)
+  })
+  do.call(rbind,group_list)
+}
+
+```
+
+Expand and clean up proteingroups files
+
+```{r expand and clean, include = TRUE}
+expanded_SA <- expand_groups(proteingroups_SA)
+expanded_SA$prot_ids <- str_replace(expanded_SA$prot_ids,"\\|m\\..*", "")
+expanded_SL <- expand_groups(proteingroups_SL)
+expanded_SL$prot_ids <- str_match(expanded_SL$prot_ids,"TRINITY_DN[0-9]*_c[0-9]_g[0-9]_i[0-9]")
+
+#remove unneeded information - just want iBAQ and prot_ids (for now)
+expanded_SA <- subset(expanded_SA, select = c("prot_ids","iBAQ"))
+expanded_SL <- subset(expanded_SL, select = c("prot_ids","iBAQ"))
+
+#change naming conventions (in order to be able to merge) 
+expanded_SL <- rename(expanded_SL, iBAQSL = iBAQ, protID_SL = prot_ids)
+expanded_SA <- rename(expanded_SA, iBAQSA = iBAQ, protID_SA = prot_ids)
+proteinortho <- rename(proteinortho, protID_SL = TrinitySepio.fasta, protID_SA = TrinitySepia.fasta)
+proteinortho <-unique(cSplit(proteinortho, "protID_SA", ",", "long"))
+proteinortho <-unique(cSplit(proteinortho, "protID_SL", ",", "long"))
+
+```
+
+Merge the Abundance information to the proteinortho table.
+```{r merge, include = TRUE}
+
+#Add iBAQ from expanded_SL to proteinortho
+merged <- merge.data.frame(expanded_SL, proteinortho,by.x = "protID_SL", by.y = "protID_SL")
+#Add iBAQ from expanded_SA to proteinortho
+merged <- merge.data.frame(expanded_SA, merged,by.x = "protID_SA", by.y = "protID_SA")
+
+```
+
+
+
+
+
+
