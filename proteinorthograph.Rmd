@@ -1,0 +1,73 @@
+---
+title: "ProteinOrtho Abundance Graph"
+author: "Nikeisha Caruana"
+date: "11 January 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE, options(stringAsFactors = FALSE)}
+library(stringr)
+library(dplyr)
+library(splitstackshape)
+```
+
+
+The code below merges two species ProteinGroups.txt files created by MaxQuant, with a ProteinOrtho file from the same two species in order to visualize the abundance of the orthologous proteins between the two species.  
+
+Read in protein orthofiles 
+
+```{r read, include = TRUE}
+proteinortho <-  read.csv("raw_data/proteinortho_data/slimeglyco_comparison.proteinortho", sep='\t', header = TRUE)
+proteingroups_SL <- read.csv("raw_data/proteinGroups_PNGaseFSL.txt",sep='\t', header = TRUE)
+proteingroups_SA <- read.csv("raw_data/proteinGroups_SA.txt",sep='\t', header = TRUE)
+```
+
+Expand protein groups so we have one row per protein.
+```{r expand function, include = TRUE}
+expand_groups <- function(protein_data){
+  group_list = lapply(1:nrow(protein_data),function(ri){
+    prot_ids = unlist(str_split(protein_data[ri,]$Protein.IDs,pattern = ";"))
+    prot_ids = str_match(prot_ids,"lcl\\|(.*)")[,2]
+    prot_ids = str_replace(prot_ids,"_m\\.",replacement = "\\|m\\.")
+    other_cols = protein_data[rep(ri,length(prot_ids)),]
+    data.frame(prot_ids,other_cols)
+  })
+  do.call(rbind,group_list)
+}
+
+```
+
+Expand and clean up files
+
+```{r expand and clean, include = TRUE, warning=FALSE}
+
+expanded_SA <- expand_groups(proteingroups_SA)
+expanded_SA$prot_ids <- str_replace(expanded_SA$prot_ids,"\\|m\\..*", "")
+expanded_SL <- expand_groups(proteingroups_SL)
+expanded_SL$prot_ids <- str_match(expanded_SL$prot_ids,"TRINITY_DN[0-9]*_c[0-9]_g[0-9]_i[0-9]")
+
+expanded_cleaned_SA <- expanded_SA %>% select(prot_ids,iBAQ) %>% rename(protID_SA = prot_ids) %>% rename(iBAQ_SA=iBAQ) %>% na.omit()
+expanded_cleaned_SL <- expanded_SL %>% select(prot_ids,iBAQ) %>% rename(protID_SL = prot_ids) %>% rename(iBAQ_SL=iBAQ) %>% na.omit()
+proteinortho_cleaned <- proteinortho %>% add_rownames(var="orthogroup") %>% rename(protID_SL = TrinitySepio.fasta) %>% rename(protID_SA = TrinitySepia.fasta) %>% cSplit("protID_SA", ",", "long",type.convert=FALSE) %>% cSplit("protID_SL", ",", "long",type.convert=FALSE) %>% as.data.frame()
+
+```
+
+Merge the Abundance information to the proteinortho table.
+```{r merge, include = TRUE}
+
+merged <- proteinortho_cleaned %>% left_join(expanded_cleaned_SL,by="protID_SL") %>% left_join(expanded_cleaned_SA,by="protID_SA")
+
+#Wanted to check how many IDs actually have an abundance in at least one species.
+mergedfinal <- merged[rowSums(is.na(merged)) !=2,]
+
+```
+
+
+
+
+
+
