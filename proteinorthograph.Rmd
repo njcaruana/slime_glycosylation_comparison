@@ -9,21 +9,28 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, include = FALSE, options(stringAsFactors = FALSE)}
+```{r, include = FALSE}
+rm(list=ls())
 library(stringr)
 library(dplyr)
 library(splitstackshape)
+library(tidyr)
+library(ggplot2)
+library(RColorBrewer)
+options(stringsAsFactors = FALSE)
 ```
 
 
 The code below merges two species ProteinGroups.txt files created by MaxQuant, with a ProteinOrtho file from the same two species in order to visualize the abundance of the orthologous proteins between the two species.  
 
-Read in protein orthofiles 
+Read in protein orthofiles and trinotate annotation reports
 
 ```{r read, include = TRUE}
 proteinortho <-  read.csv("raw_data/proteinortho_data/slimeglyco_comparison.proteinortho", sep='\t', header = TRUE)
 proteingroups_SL <- read.csv("raw_data/proteinGroups_PNGaseFSL.txt",sep='\t', header = TRUE)
 proteingroups_SA <- read.csv("raw_data/proteinGroups_SA.txt",sep='\t', header = TRUE)
+trinotateannotation_SL <- read.csv("raw_data/trinotate_annotation_report_SL.txt",sep='\t', header = TRUE)
+trinotateannotation_SA <- read.csv("raw_data/trinotate_annotation_report_SA.txt",sep='\t', header = TRUE)
 ```
 
 Expand protein groups so we have one row per protein.
@@ -62,7 +69,47 @@ Merge the Abundance information to the proteinortho table.
 merged <- proteinortho_cleaned %>% left_join(expanded_cleaned_SL,by="protID_SL") %>% left_join(expanded_cleaned_SA,by="protID_SA")
 
 #Wanted to check how many IDs actually have an abundance in at least one species.
-mergedfinal <- merged[rowSums(is.na(merged)) !=2,]
+merged_abun <- merged[rowSums(is.na(merged)) !=2,]
+```
+
+Pull out transcript_id and top BLASTX hit columns for trinotate report
+
+```{r edit trinotate report, include = TRUE}
+trin_SA <- trinotateannotation_SA %>% select(transcript_id,sprot_Top_BLASTX_hit) %>% rename(protID_SA = transcript_id) %>% rename(swissprot_SA=sprot_Top_BLASTX_hit) %>% na.omit()  
+trin_SA$swissprot_SA <- str_extract(trin_SA$swissprot_SA,"[A-Z0-9]{2,5}_[A-Z0-9]{3,5}")
+
+trin_SL <- trinotateannotation_SL %>% select(transcript_id,sprot_Top_BLASTX_hit) %>% rename(protID_SL = transcript_id) %>% rename(swissprot_SL=sprot_Top_BLASTX_hit) %>% na.omit() 
+trin_SL$swissprot_SL <- str_extract(trin_SL$swissprot_SL,"[A-Z0-9]{2,5}_[A-Z0-9]{3,5}")
+
+```
+Merge abundance table with SwissProt identifiers
+```{r merge abundance with trinotate, include = TRUE}
+merged_trinotate <- merged_abun %>% left_join(trin_SL,by="protID_SL") %>% left_join(trin_SA,by="protID_SA")
+
+```
+Collapse the list back
+```{r collapse function, include = TRUE}
+#function for aggregating
+aggfun <- function(values){
+  if (class(values)=="numeric"){
+    return(mean(values))
+  }
+  paste(unique(values),collapse=";")
+}
+
+```
+
+```{r aggregate merged table, include = TRUE}
+
+merged_coll = aggregate(merged_trinotate,by=list(merged_trinotate$orthogroup),aggfun)
+
+```
+
+
+```{r graphing, include = TRUE}
+
+top20iBAQ_SL <- head(arrange(merged_coll,desc(iBAQ_SL)),n=20)
+top20iBAQ_SA <- head(arrange(merged_coll,desc(iBAQ_SA)),n=20) 
 
 ```
 
