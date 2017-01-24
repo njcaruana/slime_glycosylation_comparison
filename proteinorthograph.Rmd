@@ -20,7 +20,6 @@ library(RColorBrewer)
 options(stringsAsFactors = FALSE)
 ```
 
-
 The code below merges two species ProteinGroups.txt files created by MaxQuant, with a ProteinOrtho file from the same two species in order to visualize the abundance of the orthologous proteins between the two species.  
 
 Read in protein orthofiles and trinotate annotation reports
@@ -67,7 +66,6 @@ Merge the Abundance information to the proteinortho table.
 ```{r merge, include = TRUE}
 
 merged <- proteinortho_cleaned %>% left_join(expanded_cleaned_SL,by="protID_SL") %>% left_join(expanded_cleaned_SA,by="protID_SA")
-
 #Select for IDs that have an abundance in at least one species.
 merged_abun <- merged[rowSums(is.na(merged)) !=2,]
 ```
@@ -87,6 +85,20 @@ Merge abundance table with SwissProt identifiers
 merged_trinotate <- merged_abun %>% left_join(trin_SL,by="protID_SL") %>% left_join(trin_SA,by="protID_SA")
 
 ```
+
+```{r merge proteinortho and top 20 iBAQ for both species}
+top20_SL <- expanded_cleaned_SL[order(expanded_cleaned_SL$iBAQ_SL,decreasing=TRUE)[1:20],]
+top20_SL$protID_SL <- as.character(top20_SL$protID_SL)
+top20_SA <- expanded_cleaned_SA[order(expanded_cleaned_SA$iBAQ_SA,decreasing=TRUE)[1:20],]
+merged_trinotate_top20_SA <- top20_SA %>% left_join(trin_SA,by="protID_SA") 
+merged_trinotate_top20_SL <- top20_SL %>% left_join(trin_SL,by="protID_SL") 
+#write.csv(x = merged_trinotate_top20_SA, file = "raw_data/SAoverall_20.csv")
+#write.csv(x = merged_trinotate_top20_SL, file = "raw_data/SLoverall_20.csv")
+top20overall_edit_SL <- read.csv("raw_data/SLoverall_20edit.csv",sep=',', header = TRUE)
+top20overall_edit_SA <- read.csv("raw_data/SAoverall_20edit.csv",sep=',', header = TRUE)
+top20merged_overall <- merge(top20overall_edit_SA,top20overall_edit_SL, all = TRUE)
+```
+
 Collapse the list back
 ```{r collapse function, include = TRUE}
 #function for aggregating
@@ -107,45 +119,28 @@ merged_coll = aggregate(merged_trinotate,by=list(merged_trinotate$orthogroup),ag
 
 
 ```{r graphing, include = TRUE, warning= FALSE}
-
+#combine the top20 abundant proteins from each species with the top20 orthologous proteins
 top20iBAQ_SL <- head(arrange(merged_coll,desc(iBAQ_SL)),n=20)
 top20iBAQ_SA <- head(arrange(merged_coll,desc(iBAQ_SA)),n=20) 
-
 top20 <- rbind(top20iBAQ_SA,top20iBAQ_SL)
-
-top20_long <- top20 %>% select(orthogroup,iBAQ_SL,iBAQ_SA) %>% gather(species,iBAQ,-orthogroup) 
+top20 <- top20 %>% full_join(top20overall_edit_SA) %>% full_join(top20overall_edit_SL)
+#write.csv(x = top20, file = "raw_data/top20.csv")
+#read in table edited for description columns and log of iBAQ
+top20_des <- read.table("raw_data/top20_description.csv",sep=',', header = TRUE)
+top20_long <- top20_des %>% select(orthogroup,iBAQ_SL_LOG,iBAQ_SA_LOG,description) %>% gather(species,iBAQ,-orthogroup, -description) 
+top20_long$orthogroup <- factor(top20_long$orthogroup, levels = top20_long$orthogroup [order(top20_long$description)])
 
 ggplot(top20_long,aes(x=orthogroup,y=iBAQ)) + 
-  geom_bar(aes(x=orthogroup,y=iBAQ),stat="identity") + 
-  facet_wrap(~species,ncol = 1) + 
+  geom_bar(aes(x=orthogroup,y=iBAQ, fill=description),stat="identity") + 
+  facet_wrap(~species,ncol = 1, nrow = 2) + scale_fill_manual(values = c('Actin' = "lightslateblue", 'Enzymatic' = "yellowgreen", 'Histone' = "deeppink", 'Calmodulin' = "darkorchid", 'Other Cellular' = "dodgerblue", 'Intermediate Filament' = 'darkorange','Unknown' = "lightpink",'Annexin' = "darkblue", 'PPR3B' = "red", 'Ubiquitination' = "aquamarine", 'IMDH3' = "yellow", 'Transcription Regulation' = "palevioletred2", 'Hormone Processing' = "thistle4", 'MR30' = "black", 'Collagen' = "moccasin")) +
   theme(axis.text.x= element_text(angle=90))
-
 ```
 
-```{r manual editing, include = TRUE, warning= FALSE}
 
-#this code is to manually edit the graph to colour based on manual groupings made based on swissprot identifiers
 
-#have to write out the tables to csv files to edit 
-write.csv(x = top20iBAQ_SL, file = "raw_data/SLtop20.csv")
-write.csv(x = top20iBAQ_SA, file = "raw_data/SAtop20.csv")
-#then read them back in after manually editing
-top20edit_SL <- read.table("raw_data/SLtop20edit.csv",sep=',', header = TRUE)
-top20edit_SA <- read.table("raw_data/SAtop20edit.csv",sep=',', header = TRUE)
 
-#run the top20 and top20_long including description
-top20edit <- rbind(top20edit_SA,top20edit_SL)
-top20_longedit <- top20edit %>% select(orthogroup,iBAQ_SL,iBAQ_SA,Description) %>% gather(species,iBAQ,-orthogroup, -Description)
-#order by Description colours 
-top20_longedit$orthogroup <- factor(top20_longedit$orthogroup, levels = top20_longedit$orthogroup [order(top20_longedit$Description)])
 
-#run graph using description as the fill
-ggplot(top20_longedit,aes(x=orthogroup,y=iBAQ)) + 
-  geom_bar(aes(x=orthogroup,y=iBAQ, fill=Description),stat="identity") + 
-  facet_wrap(~species,ncol = 1) + scale_fill_manual(values = c('Actin' = "lightslateblue", 'Enzymatic' = "yellowgreen", 'Histone' = "deeppink", 'Calmodulin' = "darkorchid", 'Other' = "dodgerblue", 'Intermediate Filament' = 'darkorange','Tubulin' = "lightpink",'Annexin' = "darkblue")) +
-  theme(axis.text.x= element_text(angle=90))
 
-```
 
 
 
