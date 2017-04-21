@@ -125,7 +125,7 @@ top20iBAQ_SA <- head(arrange(merged_coll,desc(iBAQ_SA)),n=20)
 top20 <- rbind(top20iBAQ_SA,top20iBAQ_SL)
 top20 <- top20 %>% full_join(top20overall_edit_SA) %>% full_join(top20overall_edit_SL)
 #write.csv(x = top20, file = "raw_data/top20.csv")
-#read in table edited for description columns and log of iBAQ
+#read in table edited for description columns and log of iBAQ 
 top20_des <- read.table("raw_data/top20_description.csv",sep=',', header = TRUE)
 top20_long <- top20_des %>% select(orthogroup,iBAQ_SL_LOG,iBAQ_SA_LOG,description) %>% gather(species,iBAQ,-orthogroup, -description) 
 top20_long$orthogroup <- factor(top20_long$orthogroup, levels = top20_long$orthogroup [order(top20_long$description)])
@@ -134,10 +134,9 @@ top20_long$species <- str_replace_all(top20_long$species,"iBAQ_SA_LOG", "S.austr
 top20_long <- unique(top20_long)
 
 ggplot(top20_long,aes(x=orthogroup,y=iBAQ)) + 
-  geom_bar(aes(x=top20_long$orthogroup,y=top20_long$iBAQ, fill=description),stat="identity") + 
-  facet_wrap(~species,ncol = 1, nrow = 2) + ylab("log(iBAQ)") +
-  scale_fill_manual(values = c('Actin' = "lightslateblue", 'Enzymatic' = "yellowgreen", 'Histone' = "deeppink", 'Calmodulin' = "darkorchid", 'Other Cellular' = "dodgerblue", 'Intermediate Filament' = 'darkorange','Unknown' = "lightpink",'Annexin' = "darkblue", 'PPR3B' = "red", 'Ubiquitination' = "aquamarine", 'IMDH3' = "yellow", 'Transcription Regulation' = "palevioletred2", 'Hormone Processing' = "thistle4", 'MR30' = "black", 'Collagen' = "moccasin")) +
-  theme(axis.text.x= element_text(angle=90))
+  geom_bar(aes(x=top20_long$orthogroup,y=top20_long$iBAQ, fill=description),stat="identity") +
+  facet_wrap(~species,ncol = 1, nrow = 2) + ylab("log(iBAQ)") + xlab("Orthogroup") +
+  scale_fill_manual(values = c('Actin' = "lightslateblue", 'Enzymatic' = "yellowgreen", 'Histone' = "deeppink", 'Calmodulin' = "darkorchid", 'Other Cellular' = "dodgerblue", 'Intermediate Filament' = 'darkorange','Unknown' = "lightpink",'Annexin' = "darkblue", 'PPR3B' = "red", 'Ubiquitination' = "aquamarine", 'IMDH3' = "yellow", 'Transcription Regulation' = "palevioletred2", 'Hormone Processing' = "thistle4", 'MR30' = "black", 'Collagen' = "moccasin")) + theme(axis.text.x= element_text(angle=90)) 
 ```
 
 
