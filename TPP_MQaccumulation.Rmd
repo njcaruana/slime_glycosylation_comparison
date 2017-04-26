@@ -1,0 +1,117 @@
+---
+title: "accumulation_curve_all"
+author: "Nikeisha Caruana"
+date: "24 April 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include=FALSE}
+rm(list=ls())
+
+library(ggplot2)
+library(dplyr) # useful for data manipulation
+library(splitstackshape)
+library(tidyr)
+library(combinat)
+library(data.table)
+
+```
+
+## Accumulation Curve for Glycosylated proteins found in PNGaseF samples'
+
+```{r read in data}
+TPP_data = read.table("raw_data/TPPalldata.txt",sep="\t",header=TRUE)
+TPP_data = TPP_data[TPP_data$interprophet_prob >= 0.99, ]
+TPPpeptide = TPP_data %>% select(protein,contains("experiment_label"))
+
+MQ_data = read.table("raw_data/MQpeptides.txt",sep="\t",header=TRUE,na.strings = "0")
+MQpeptide = MQ_data %>% select(Leading.razor.protein,contains("Intensity."))
+```
+
+
+```{r clean up data}
+MQ_tall <- MQpeptide %>% 
+    gather(sample,int_value,-Leading.razor.protein) %>% 
+    filter(!is.na(int_value)) %>% # Removes NAs
+    filter(!grepl("CON_",Leading.razor.protein)) %>%
+    filter(!grepl("sp",Leading.razor.protein)) %>%# Removes contaminants
+    filter(!grepl("decoy",Leading.razor.protein)) #Removes decoys
+
+colnames(MQ_tall)[1] <- "protein"
+
+
+TPP_tall <- TPPpeptide %>% 
+    gather(sample,exp_label,-protein) %>% 
+    filter(!is.na(exp_label)) %>% # Removes NAs
+    filter(!grepl("decoy",protein)) %>%#Removes decoys
+    unite(experiment, c(sample,exp_label))
+
+colnames(TPP_tall)[2] <- "sample"
+
+peptide_all <- merge(MQ_tall, TPP_tall, all = TRUE)
+```
+
+```{r}
+distinct_proteins_in_samples <- function(samples){
+    peptide_all %>% 
+    filter(sample %in% samples) %>% 
+    select(protein) %>% 
+    distinct()
+}
+
+new_proteins <- function(samples_1,samples_2){
+  prots_samples1 <- distinct_proteins_in_samples(samples_1)
+  prots_samples2 <- distinct_proteins_in_samples(samples_2)
+  
+  setdiff(prots_samples2,prots_samples1)
+}
+
+accumulation <- function(samples){
+  n1 <- nrow(distinct_proteins_in_samples(samples[1]))
+  n_prots <- sapply(2:length(samples),function(i){
+    nrow(new_proteins(samples[1:(i-1)],samples[i]))
+  })
+  c(n1,n_prots)
+}
+```
+
+```{r}
+MQ_P <- colnames(MQpeptide)[c(3,5,7,9)]
+MQ_NP <- colnames(MQpeptide)[c(2,4,6,8)]
+TPP_NP <- c("experiment_label_1","experiment_label_2","experiment_label_3","experiment_label_4")
+TPP_P <- c("experiment_label_1P","experiment_label_2P","experiment_label_3P","experiment_label_4P")
+
+acc_MQNP <- sapply(permn(MQ_NP),accumulation)
+acc_MQP <- sapply(permn(MQ_P),accumulation)
+acc_TPPNP <- sapply(permn(TPP_NP),accumulation)
+acc_TPPP <- sapply(permn(TPP_P),accumulation)
+
+```
+
+```{r}
+plot_dataMQNP <- as.data.frame(t(apply(acc_MQNP,2,cumsum))) %>% gather(sample_num,total_proteins)
+plot_dataMQP <- as.data.frame(t(apply(acc_MQP,2,cumsum))) %>% gather(sample_num,total_proteins)
+plot_dataTPPNP <- as.data.frame(t(apply(acc_TPPNP,2,cumsum))) %>% gather(sample_num,total_proteins)
+plot_dataTPPP <- as.data.frame(t(apply(acc_TPPP,2,cumsum))) %>% gather(sample_num,total_proteins)
+
+
+plot_dataMQNP2 <- aggregate(total_proteins~sample_num,plot_dataMQNP,mean)
+plot_dataMQP2 <- aggregate(total_proteins~sample_num,plot_dataMQP,mean)
+plot_dataTPPNP2 <- aggregate(total_proteins~sample_num,plot_dataTPPNP,mean)
+plot_dataTPPP2 <- aggregate(total_proteins~sample_num,plot_dataTPPP,mean)
+```
+
+```{r plotting, echo=FALSE}
+
+ggplot() + 
+  geom_point(data = plot_dataMQNP2, aes(x=sample_num,y=total_proteins, colour = "MQ Non-PNGase F")) +
+  geom_point(data = plot_dataMQP2, aes(x=sample_num,y=total_proteins, colour = "MQ PNGase F")) + 
+  geom_point(data = plot_dataTPPNP2, aes(x=sample_num,y=total_proteins, colour = "TPP Non-PNGase F")) +
+  geom_point(data = plot_dataTPPP2, aes(x=sample_num,y=total_proteins, colour = "TPP PNGase F")) + 
+  xlab('Sample Number') + ylab ('Number Total Peptides') + theme(legend.title=element_blank())
+
+```
