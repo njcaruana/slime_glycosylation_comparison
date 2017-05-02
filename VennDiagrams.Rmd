@@ -1,0 +1,116 @@
+---
+title: "VennDiagrams"
+author: "Nikeisha Caruana"
+date: "21 February 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+library(VennDiagram)
+library(splitstackshape)
+library(stringr)
+library(dplyr)
+```
+
+Venn Diagram for Maxquant vs PROTXML glycoproteins
+
+```{r}
+#read in files
+glyco_MQ <-  read.csv("raw_data/Glycosylated_MQ.csv", sep='\t', header = FALSE)
+glyco_PROT <-  read.csv("raw_data/Glycosylated_PROTXML.csv", sep='\t', header = TRUE)
+#split Maxquant to compare proteins
+#glyco_MQ <- cSplit(glyco_MQ, "V1", ";","long")
+#extract protein IDs
+glyco_MQ <- str_extract(glyco_MQ$V1,"[A-Z]*_[A-Z]{2}[0-9]{0,6}_c[0-9]{1,2}_g[0-9]{1}_i[0-9]{1}")
+
+#make venn diagram
+vd<-venn.diagram(list(Maxquant=(glyco_MQ),PROTXML=(glyco_PROT$x)),NULL,main="Identified glycosylated proteins",cat.just,
+                 fill = c("slateblue2", "turquoise"), fontfamily='sans', cat.fontfamily= "sans", main.fontfamily = "sans",
+                 cat.dist = c(0.03, 0.03),cat.pos = c(-14, 14))
+grid.draw(vd)
+
+```
+
+Venn Diagram for PNGase F vs non-PNGase F Proteins in MQ
+
+```{r}
+#read in data
+MQ_data = read.table("raw_data/proteinGroups_PNGaseFSL.txt",sep="\t",header=TRUE, row.names = 6)
+iBAQdata = MQ_data[c(68,69,70,71,72,73,74,75)]
+iBAQdata = subset(iBAQdata, !(iBAQ.1_160309183003 == 0 & iBAQ.2 == 0 & iBAQ.3 == 0 & iBAQ.4 == 0 & iBAQ.1P == 0 & iBAQ.2P == 0 & iBAQ.3P == 0 & iBAQ.4P == 0))
+
+#subset iBAQ data
+MQdata_Psub <- subset(iBAQdata, iBAQ.1P > 0 | iBAQ.2P > 0 | iBAQ.3P > 0 | iBAQ.4P > 0)
+MQdata_Psub2 <- subset(MQdata_Psub, iBAQ.1_160309183003 == 0 & iBAQ.2 == 0 & iBAQ.3 == 0 & iBAQ.4 == 0)
+
+MQdata_NPsub <- subset(iBAQdata, iBAQ.1_160309183003 > 0  | iBAQ.2 > 0 | iBAQ.3 > 0 | iBAQ.4 > 0)
+MQdata_NPsub2 <- subset(MQdata_NPsub, iBAQ.1P == 0 & iBAQ.2P == 0 & iBAQ.3P == 0 & iBAQ.4P == 0 )
+```
+
+```{r}
+#makes sure the row names are their own column called ID 
+editiBAQdata<- cbind(ID = rownames(iBAQdata), iBAQdata)
+row.names(editiBAQdata) <- NULL 
+
+editNP<- cbind(ID = rownames(MQdata_NPsub2), MQdata_NPsub2)
+row.names(editNP) <- NULL 
+
+editP<- cbind(ID = rownames(MQdata_Psub2), MQdata_Psub2)
+row.names(editP) <- NULL 
+```
+
+```{r}
+#anti merge the whole iBAQ data with the subset of NP to get rid of it from the data
+merged <- iBAQdata[!(editiBAQdata$ID %in% editNP$ID),]
+
+merged<- cbind(ID = rownames(merged), merged)
+row.names(merged) <- NULL 
+
+#antimerge the P and iBAQ data -> so now you only have the iBAQ data that doesnt have NP or P alone (i.e the middle of the diagram)
+merged <- merged[!(merged$ID %in% editP$ID),]
+```
+
+```{r}
+#add the iBAQ data and the NP data then the same with the P data 
+datasetNP <- rbind(merged,editNP)
+datasetP <- rbind(merged,editP)
+
+#make venn diagram
+vd<-venn.diagram(list(NonPNGaseF=(datasetNP$ID),PNGaseF=(datasetP$ID)),NULL,main="Proteins in S. lineolata slime",cat.just,fill = c("cornflowerblue", "seagreen3"), fontfamily='sans', cat.fontfamily= "sans", main.fontfamily = "sans", cat.dist = c(0.03, 0.03),cat.pos = c(-14, 14))
+grid.draw(vd)
+
+```
+
+
+***IRA***
+This Venn Diagram might be okay, I cant really see what would have gone wrong, but the numbers seem a lot 
+bigger than in the MQ Venn Diagram.
+***IRA***
+
+
+Venn Diagram for PNGase F vs non-PNGase F Proteins in the TPP
+
+
+```{r}
+#read in data
+
+TPPP_data = read.table("raw_data/TPPP_proteindata.txt",sep="\t",header=TRUE)
+TPPNP_data = read.table("raw_data/TPPNP_proteindata.txt",sep="\t",header=TRUE)
+
+datasetP <- TPPP_data$protein_name 
+datasetP <- as.data.frame(datasetP)
+datasetP <- datasetP %>% filter(!grepl("decoy",datasetP)) %>% filter(!grepl("sp",datasetP))
+
+datasetNP <- TPPNP_data$protein_name 
+datasetNP <- as.data.frame(datasetNP)
+datasetNP <- datasetNP %>% filter(!grepl("decoy",datasetNP)) %>% filter(!grepl("sp",datasetNP))
+
+```
+
+```{r}
+#make venn diagram
+vd<-venn.diagram(list(NonPNGaseF=(datasetNP$datasetNP),PNGaseF=(datasetP$datasetP)),NULL,main="Proteins identified by the Trans-Proteomic Pipeline in S. lineolata slime",cat.just,fill = c("cornflowerblue", "seagreen3"), fontfamily='sans', cat.fontfamily= "sans", main.fontfamily = "sans", cat.dist = c(0.03, 0.03),cat.pos = c(-14, 14))
+grid.draw(vd)
+```

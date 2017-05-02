@@ -55,6 +55,14 @@ colnames(TPP_tall)[2] <- "sample"
 peptide_all <- merge(MQ_tall, TPP_tall, all = TRUE)
 ```
 
+
+***IRA***
+
+Up until this point I think its okay. I think the problem in the data is my understanding and manipulation of
+the functions. For MQ I think I have a total of 2275 peptides and for the TPP I have 3,500-4,500 (approximately) peptides. What Im getting after the permutations is too low. 
+
+***IRA***
+
 ```{r}
 distinct_proteins_in_samples <- function(samples){
     peptide_all %>% 
@@ -92,6 +100,12 @@ acc_TPPP <- sapply(permn(TPP_P),accumulation)
 
 ```
 
+***IRA***
+When I run the permn functions the results are too low for the amount of peptides.
+***IRA***
+
+
+
 ```{r}
 plot_dataMQNP <- as.data.frame(t(apply(acc_MQNP,2,cumsum))) %>% gather(sample_num,total_proteins)
 plot_dataMQP <- as.data.frame(t(apply(acc_MQP,2,cumsum))) %>% gather(sample_num,total_proteins)
@@ -99,19 +113,25 @@ plot_dataTPPNP <- as.data.frame(t(apply(acc_TPPNP,2,cumsum))) %>% gather(sample_
 plot_dataTPPP <- as.data.frame(t(apply(acc_TPPP,2,cumsum))) %>% gather(sample_num,total_proteins)
 
 
-plot_dataMQNP2 <- aggregate(total_proteins~sample_num,plot_dataMQNP,mean)
+plot_dataMQNP2 <- aggregate(total_proteins~sample_num,plot_dataMQNP,mean) 
 plot_dataMQP2 <- aggregate(total_proteins~sample_num,plot_dataMQP,mean)
 plot_dataTPPNP2 <- aggregate(total_proteins~sample_num,plot_dataTPPNP,mean)
-plot_dataTPPP2 <- aggregate(total_proteins~sample_num,plot_dataTPPP,mean)
-```
+plot_dataTPPP2 <- aggregate(total_proteins~sample_num,plot_dataTPPP,mean) 
+
+plot_dataMQNP2$sample_num <- gsub("V", "",plot_dataMQNP2$sample_num)
+plot_dataMQP2$sample_num <-gsub("V", "",plot_dataMQP2$sample_num)
+plot_dataTPPNP2$sample_num <- gsub("V", "",plot_dataTPPNP2$sample_num)
+plot_dataTPPP2$sample_num<- gsub("V", "",plot_dataTPPP2$sample_num)
+
+ ```
 
 ```{r plotting, echo=FALSE}
 
 ggplot() + 
-  geom_point(data = plot_dataMQNP2, aes(x=sample_num,y=total_proteins, colour = "MQ Non-PNGase F")) +
-  geom_point(data = plot_dataMQP2, aes(x=sample_num,y=total_proteins, colour = "MQ PNGase F")) + 
-  geom_point(data = plot_dataTPPNP2, aes(x=sample_num,y=total_proteins, colour = "TPP Non-PNGase F")) +
-  geom_point(data = plot_dataTPPP2, aes(x=sample_num,y=total_proteins, colour = "TPP PNGase F")) + 
+  geom_point(size=2, data = plot_dataMQNP2, aes(x=sample_num,y=total_proteins, colour = "MQ Non-PNGase F")) +
+  geom_point(size=2, data = plot_dataMQP2, aes(x=sample_num,y=total_proteins, colour = "MQ PNGase F")) + 
+  geom_point(size=2, data = plot_dataTPPNP2, aes(x=sample_num,y=total_proteins, colour = "TPP Non-PNGase F")) +
+  geom_point(size=2, data = plot_dataTPPP2, aes(x=sample_num,y=total_proteins, colour = "TPP PNGase F")) + 
   xlab('Sample Number') + ylab ('Number Total Peptides') + theme(legend.title=element_blank())
 
 ```
