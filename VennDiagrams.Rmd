@@ -84,29 +84,24 @@ grid.draw(vd)
 ```
 
 
-***IRA***
-This Venn Diagram might be okay, I cant really see what would have gone wrong, but the numbers seem a lot 
-bigger than in the MQ Venn Diagram.
-***IRA***
-
-
 Venn Diagram for PNGase F vs non-PNGase F Proteins in the TPP
 
 
 ```{r}
 #read in data
 
-TPPP_data = read.table("raw_data/TPPP_proteindata.txt",sep="\t",header=TRUE)
-TPPNP_data = read.table("raw_data/TPPNP_proteindata.txt",sep="\t",header=TRUE)
+TPPP_data = read.table("raw_data/observed_peptides_PNGaseF.gff3",sep="\t",header=FALSE)
+TPPNP_data = read.table("raw_data/observed_peptideNPs.gff3",sep="\t",header=FALSE)
 
-datasetP <- TPPP_data$protein_name 
+datasetP <- TPPP_data$V1
 datasetP <- as.data.frame(datasetP)
 datasetP <- datasetP %>% filter(!grepl("decoy",datasetP)) %>% filter(!grepl("sp",datasetP))
+datasetP <- unique(datasetP)
 
-datasetNP <- TPPNP_data$protein_name 
+datasetNP <- TPPNP_data$V1
 datasetNP <- as.data.frame(datasetNP)
 datasetNP <- datasetNP %>% filter(!grepl("decoy",datasetNP)) %>% filter(!grepl("sp",datasetNP))
-
+datasetNP <-unique(datasetNP)
 ```
 
 ```{r}
