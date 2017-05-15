@@ -1,0 +1,125 @@
+---
+title: "accumulation_curve_all"
+author: "Nikeisha Caruana"
+date: "24 April 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include=FALSE}
+rm(list=ls())
+
+library(ggplot2)
+library(dplyr) # useful for data manipulation
+library(splitstackshape)
+library(tidyr)
+library(combinat)
+library(data.table)
+
+```
+
+## Accumulation Curve for Glycosylated proteins found in PNGaseF samples'
+
+```{r read in data}
+TPP_data = read.table("raw_data/TPPalldata.txt",sep="\t",header=TRUE)
+TPP_data = TPP_data[TPP_data$interprophet_prob >= 0.99, ]
+TPPpeptide = TPP_data %>% select(peptide,contains("experiment_label"))
+
+MQ_data = read.table("raw_data/MQpeptides.txt",sep="\t",header=TRUE,na.strings = "0")
+MQpeptide = MQ_data %>% select(Sequence,contains("Intensity."))
+```
+
+
+```{r clean up data}
+MQ_tall <- MQpeptide %>% 
+    gather(sample,int_value,-Sequence) %>% 
+    filter(!is.na(int_value)) %>% # Removes NAs
+    filter(!grepl("CON_",Sequence)) %>%
+    filter(!grepl("sp",Sequence)) %>%# Removes contaminants
+    filter(!grepl("decoy",Sequence)) #Removes decoys
+
+colnames(MQ_tall)[1] <- "peptide"
+
+
+TPP_tall <- TPPpeptide %>% 
+    gather(sample,exp_label,-peptide) %>% 
+    filter(!is.na(exp_label)) %>% # Removes NAs
+    filter(!grepl("decoy",peptide)) %>%#Removes decoys
+    unite(experiment, c(sample,exp_label))
+
+colnames(TPP_tall)[2] <- "sample"
+
+peptide_all <- merge(MQ_tall, TPP_tall, all = TRUE)
+```
+
+
+```{r}
+distinct_peptides_in_samples <- function(samples){
+    peptide_all %>% 
+    filter(sample %in% samples) %>% 
+    select(peptide) %>% 
+    distinct()
+}
+
+new_peptides <- function(samples_1,samples_2){
+  peps_samples1 <- distinct_peptides_in_samples(samples_1)
+  peps_samples2 <- distinct_peptides_in_samples(samples_2)
+  
+  setdiff(peps_samples2,peps_samples1)
+}
+
+accumulation <- function(samples){
+  n1 <- nrow(distinct_peptides_in_samples(samples[1]))
+  n_peps <- sapply(2:length(samples),function(i){
+    nrow(new_peptides(samples[1:(i-1)],samples[i]))
+  })
+  c(n1,n_peps)
+}
+```
+
+```{r}
+MQ_P <- colnames(MQpeptide)[c(3,5,7,9)]
+MQ_NP <- colnames(MQpeptide)[c(2,4,6,8)]
+TPP_NP <- c("experiment_label_1","experiment_label_2","experiment_label_3","experiment_label_4")
+TPP_P <- c("experiment_label_1P","experiment_label_2P","experiment_label_3P","experiment_label_4P")
+
+acc_MQNP <- sapply(permn(MQ_NP),accumulation)
+acc_MQP <- sapply(permn(MQ_P),accumulation)
+acc_TPPNP <- sapply(permn(TPP_NP),accumulation)
+acc_TPPP <- sapply(permn(TPP_P),accumulation)
+
+```
+
+
+```{r}
+plot_dataMQNP <- as.data.frame(t(apply(acc_MQNP,2,cumsum))) %>% gather(sample_num,total_peptides)
+plot_dataMQP <- as.data.frame(t(apply(acc_MQP,2,cumsum))) %>% gather(sample_num,total_peptides)
+plot_dataTPPNP <- as.data.frame(t(apply(acc_TPPNP,2,cumsum))) %>% gather(sample_num,total_peptides)
+plot_dataTPPP <- as.data.frame(t(apply(acc_TPPP,2,cumsum))) %>% gather(sample_num,total_peptides)
+
+
+plot_dataMQNP2 <- aggregate(total_peptides~sample_num,plot_dataMQNP,mean) 
+plot_dataMQP2 <- aggregate(total_peptides~sample_num,plot_dataMQP,mean)
+plot_dataTPPNP2 <- aggregate(total_peptides~sample_num,plot_dataTPPNP,mean)
+plot_dataTPPP2 <- aggregate(total_peptides~sample_num,plot_dataTPPP,mean) 
+
+plot_dataMQNP2$sample_num <- gsub("V", "",plot_dataMQNP2$sample_num)
+plot_dataMQP2$sample_num <-gsub("V", "",plot_dataMQP2$sample_num)
+plot_dataTPPNP2$sample_num <- gsub("V", "",plot_dataTPPNP2$sample_num)
+plot_dataTPPP2$sample_num<- gsub("V", "",plot_dataTPPP2$sample_num)
+
+ ```
+
+```{r plotting, echo=FALSE}
+
+ggplot() + 
+  geom_point(size=2, data = plot_dataMQNP2, aes(x=sample_num,y=total_peptides, colour = "MQ Non-PNGase F")) +
+  geom_point(size=2, data = plot_dataMQP2, aes(x=sample_num,y=total_peptides, colour = "MQ PNGase F")) + 
+  geom_point(size=2, data = plot_dataTPPNP2, aes(x=sample_num,y=total_peptides, colour = "TPP Non-PNGase F")) +
+  geom_point(size=2, data = plot_dataTPPP2, aes(x=sample_num,y=total_peptides, colour = "TPP PNGase F")) + 
+  xlab('Sample Number') + ylab ('Number Total Peptides') + theme(legend.title=element_blank())
+
+```

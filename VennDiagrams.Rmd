@@ -75,8 +75,9 @@ merged <- merged[!(merged$ID %in% editP$ID),]
 ```{r}
 #add the iBAQ data and the NP data then the same with the P data 
 datasetNP <- rbind(merged,editNP)
+datasetNP <- filter(datasetNP, grepl("TRINITY",ID))
 datasetP <- rbind(merged,editP)
-
+datasetP <- filter(datasetP, grepl("TRINITY",ID))
 #make venn diagram
 vd<-venn.diagram(list(NonPNGaseF=(datasetNP$ID),PNGaseF=(datasetP$ID)),NULL,main="Proteins in S. lineolata slime",cat.just,fill = c("cornflowerblue", "seagreen3"), fontfamily='sans', cat.fontfamily= "sans", main.fontfamily = "sans", cat.dist = c(0.03, 0.03),cat.pos = c(-14, 14))
 grid.draw(vd)
@@ -93,19 +94,43 @@ Venn Diagram for PNGase F vs non-PNGase F Proteins in the TPP
 TPPP_data = read.table("raw_data/observed_peptides_PNGaseF.gff3",sep="\t",header=FALSE)
 TPPNP_data = read.table("raw_data/observed_peptideNPs.gff3",sep="\t",header=FALSE)
 
-datasetP <- TPPP_data$V1
-datasetP <- as.data.frame(datasetP)
-datasetP <- datasetP %>% filter(!grepl("decoy",datasetP)) %>% filter(!grepl("sp",datasetP))
-datasetP <- unique(datasetP)
+datasetTPPP <- TPPP_data$V1
+datasetTPPP <- as.data.frame(datasetTPPP)
+datasetTPPP <- datasetTPPP %>% filter(!grepl("decoy",datasetTPPP)) %>% filter(!grepl("sp",datasetTPPP))
+datasetTPPP <- unique(datasetTPPP)
 
-datasetNP <- TPPNP_data$V1
-datasetNP <- as.data.frame(datasetNP)
-datasetNP <- datasetNP %>% filter(!grepl("decoy",datasetNP)) %>% filter(!grepl("sp",datasetNP))
-datasetNP <-unique(datasetNP)
+datasetTPPNP <- TPPNP_data$V1
+datasetTPPNP <- as.data.frame(datasetTPPNP)
+datasetTPPNP <- datasetTPPNP %>% filter(!grepl("decoy",datasetTPPNP)) %>% filter(!grepl("sp",datasetTPPNP))
+datasetTPPNP <-unique(datasetTPPNP)
 ```
 
 ```{r}
 #make venn diagram
-vd<-venn.diagram(list(NonPNGaseF=(datasetNP$datasetNP),PNGaseF=(datasetP$datasetP)),NULL,main="Proteins identified by the Trans-Proteomic Pipeline in S. lineolata slime",cat.just,fill = c("cornflowerblue", "seagreen3"), fontfamily='sans', cat.fontfamily= "sans", main.fontfamily = "sans", cat.dist = c(0.03, 0.03),cat.pos = c(-14, 14))
+vd<-venn.diagram(list(NonPNGaseF=(datasetTPPNP$datasetNP),PNGaseF=(datasetTPPP$datasetP)),NULL,main="Proteins identified by the Trans-Proteomic Pipeline in S. lineolata slime",cat.just,fill = c("cornflowerblue", "seagreen3"), fontfamily='sans', cat.fontfamily= "sans", main.fontfamily = "sans", cat.dist = c(0.03, 0.03),cat.pos = c(-14, 14))
 grid.draw(vd)
 ```
+
+
+```{r checking overall number of proteins PNGase F and Non-PNGase in both search engines}
+#pngasef
+MQPNGase <- datasetP$ID
+TPPPNGase <- datasetTPPP$datasetTPPP
+MQPNGase <- str_match(MQPNGase,"TRINITY_DN[0-9]*_c[0-9]*_g[0-9]*_i[0-9]")
+MQPNGase <- na.omit(MQPNGase)
+intersect <- intersect(TPPPNGase, MQPNGase)
+
+#nonpngasef
+
+MQNPNGase <- datasetNP$ID
+TPPNPNGase <- datasetTPPNP$datasetTPPNP
+MQNPNGase <- str_match(MQNPNGase,"TRINITY_DN[0-9]*_c[0-9]*_g[0-9]*_i[0-9]")
+MQNPNGase <- na.omit(MQNPNGase)
+intersectNP <- intersect(TPPNPNGase, MQNPNGase)
+
+#onlyinTPPP
+
+TPPPonly <- setdiff(TPPPNGase, MQPNGase)
+
+```
+
