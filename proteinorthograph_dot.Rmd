@@ -1,0 +1,154 @@
+---
+title: "ProteinOrtho Abundance Graph"
+author: "Nikeisha Caruana"
+date: "11 January 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+rm(list=ls())
+library(stringr)
+library(dplyr)
+library(splitstackshape)
+library(tidyr)
+library(ggplot2)
+library(RColorBrewer)
+options(stringsAsFactors = FALSE)
+```
+
+The code below merges two species ProteinGroups.txt files created by MaxQuant, with a ProteinOrtho file from the same two species in order to visualize the abundance of the orthologous proteins between the two species.  
+
+Read in protein orthofiles and trinotate annotation reports
+
+```{r read, include = TRUE}
+proteinortho <-  read.csv("raw_data/proteinortho_data/slimeglyco_comparison.proteinortho", sep='\t', header = TRUE)
+proteingroups_SL <- read.csv("raw_data/proteinGroups_PNGaseFSL.txt",sep='\t', header = TRUE)
+proteingroups_SA <- read.csv("raw_data/proteinGroups_SA.txt",sep='\t', header = TRUE)
+trinotateannotation_SL <- read.csv("raw_data/trinotate_annotation_report_SL.txt",sep='\t', header = TRUE)
+trinotateannotation_SA <- read.csv("raw_data/trinotate_annotation_report_SA.txt",sep='\t', header = TRUE)
+```
+
+Expand protein groups so we have one row per protein.
+```{r expand function, include = TRUE}
+expand_groups <- function(protein_data){
+  group_list = lapply(1:nrow(protein_data),function(ri){
+    prot_ids = unlist(str_split(protein_data[ri,]$Protein.IDs,pattern = ";"))
+    prot_ids = str_match(prot_ids,"lcl\\|(.*)")[,2]
+    prot_ids = str_replace(prot_ids,"_m\\.",replacement = "\\|m\\.")
+    other_cols = protein_data[rep(ri,length(prot_ids)),]
+    data.frame(prot_ids,other_cols)
+  })
+  do.call(rbind,group_list)
+}
+
+```
+
+Expand and clean up files
+
+```{r expand and clean, include = TRUE, warning=FALSE}
+
+expanded_SA <- expand_groups(proteingroups_SA)
+expanded_SA$prot_ids <- str_replace(expanded_SA$prot_ids,"\\|m\\..*", "")
+expanded_SL <- expand_groups(proteingroups_SL)
+expanded_SL$prot_ids <- str_match(expanded_SL$prot_ids,"TRINITY_DN[0-9]*_c[0-9]_g[0-9]_i[0-9]")
+
+expanded_cleaned_SA <- expanded_SA %>% select(prot_ids,iBAQ) %>% rename(protID_SA = prot_ids) %>% rename(iBAQ_SA=iBAQ) %>% na.omit()
+expanded_cleaned_SL <- expanded_SL %>% select(prot_ids,iBAQ) %>% rename(protID_SL = prot_ids) %>% rename(iBAQ_SL=iBAQ) %>% na.omit()
+proteinortho_cleaned <- proteinortho %>% add_rownames(var="orthogroup") %>% rename(protID_SL = TrinitySepio.fasta) %>% rename(protID_SA = TrinitySepia.fasta) %>% cSplit("protID_SA", ",", "long",type.convert=FALSE) %>% cSplit("protID_SL", ",", "long",type.convert=FALSE) %>% as.data.frame()
+
+```
+
+Merge the Abundance information to the proteinortho table.
+```{r merge, include = TRUE}
+
+merged <- proteinortho_cleaned %>% left_join(expanded_cleaned_SL,by="protID_SL") %>% left_join(expanded_cleaned_SA,by="protID_SA")
+#Select for IDs that have an abundance in at least one species.
+merged_abun <- merged[rowSums(is.na(merged)) !=2,]
+```
+
+Pull out transcript_id and top BLASTX hit columns for trinotate report
+
+```{r edit trinotate report, include = TRUE}
+trin_SA <- trinotateannotation_SA %>% select(transcript_id,sprot_Top_BLASTX_hit) %>% rename(protID_SA = transcript_id) %>% rename(swissprot_SA=sprot_Top_BLASTX_hit) %>% na.omit()  
+trin_SA$swissprot_SA <- str_extract(trin_SA$swissprot_SA,"[A-Z0-9]{2,5}_[A-Z0-9]{3,5}")
+
+trin_SL <- trinotateannotation_SL %>% select(transcript_id,sprot_Top_BLASTX_hit) %>% rename(protID_SL = transcript_id) %>% rename(swissprot_SL=sprot_Top_BLASTX_hit) %>% na.omit() 
+trin_SL$swissprot_SL <- str_extract(trin_SL$swissprot_SL,"[A-Z0-9]{2,5}_[A-Z0-9]{3,5}")
+
+```
+Merge abundance table with SwissProt identifiers
+```{r merge abundance with trinotate, include = TRUE}
+merged_trinotate <- merged_abun %>% left_join(trin_SL,by="protID_SL") %>% left_join(trin_SA,by="protID_SA")
+
+```
+
+```{r merge proteinortho and top 20 iBAQ for both species}
+top20_SL <- expanded_cleaned_SL[order(expanded_cleaned_SL$iBAQ_SL,decreasing=TRUE)[1:20],]
+top20_SL$protID_SL <- as.character(top20_SL$protID_SL)
+top20_SA <- expanded_cleaned_SA[order(expanded_cleaned_SA$iBAQ_SA,decreasing=TRUE)[1:20],]
+merged_trinotate_top20_SA <- top20_SA %>% left_join(trin_SA,by="protID_SA") 
+merged_trinotate_top20_SL <- top20_SL %>% left_join(trin_SL,by="protID_SL") 
+#write.csv(x = merged_trinotate_top20_SA, file = "raw_data/SAoverall_20.csv")
+#write.csv(x = merged_trinotate_top20_SL, file = "raw_data/SLoverall_20.csv")
+top20overall_edit_SL <- read.csv("raw_data/SLoverall_20edit.csv",sep=',', header = TRUE)
+top20overall_edit_SA <- read.csv("raw_data/SAoverall_20edit.csv",sep=',', header = TRUE)
+top20merged_overall <- merge(top20overall_edit_SA,top20overall_edit_SL, all = TRUE)
+```
+
+Collapse the list back
+```{r collapse function, include = TRUE}
+#function for aggregating
+aggfun <- function(values){
+  if (class(values)=="numeric"){
+    return(mean(values))
+  }
+  paste(unique(values),collapse=";")
+}
+
+```
+
+```{r aggregate merged table, include = TRUE}
+
+merged_coll = aggregate(merged_trinotate,by=list(merged_trinotate$orthogroup),aggfun)
+
+```
+
+
+```{r graphing, include = TRUE, warning= FALSE}
+#combine the top20 abundant proteins from each species with the top20 orthologous proteins
+top20iBAQ_SL <- head(arrange(merged_coll,desc(iBAQ_SL)),n=20)
+top20iBAQ_SA <- head(arrange(merged_coll,desc(iBAQ_SA)),n=20) 
+top20 <- rbind(top20iBAQ_SA,top20iBAQ_SL)
+top20 <- top20 %>% full_join(top20overall_edit_SA) %>% full_join(top20overall_edit_SL)
+#write.csv(x = top20, file = "raw_data/top20.csv")
+#read in table edited for description columns and log of iBAQ 
+top20_des <- read.table("raw_data/top20_description.csv",sep=',', header = TRUE)
+top20_long <- top20_des %>% select(orthogroup,iBAQ_SL_LOG,iBAQ_SA_LOG,description) %>% gather(species,iBAQ,-orthogroup, -description) 
+top20_long$orthogroup <- factor(top20_long$orthogroup, levels = top20_long$orthogroup [order(top20_long$description)])
+top20_long$species<- str_replace_all(top20_long$species,"iBAQ_SL_LOG", "S.lineolata")
+top20_long$species <- str_replace_all(top20_long$species,"iBAQ_SA_LOG", "S.austrinum")
+top20_long <- unique(top20_long)
+
+
+```
+
+```{r}
+
+ggplot(top20_long,aes(x=orthogroup,y=iBAQ)) + 
+  geom_point(size = 4,aes(colour = description),stat="identity") +
+  facet_wrap(~species,ncol = 1, nrow = 2) + ylab("log(iBAQ)") + xlab("Orthogroup") + 
+  scale_colour_manual(values = c('Actin' = "lightslateblue", 'Enzymatic' = "yellowgreen", 'Histone' = "deeppink", 'Calmodulin' = "darkorchid", 'Other Cellular' = "dodgerblue", 'Intermediate Filament' = 'darkorange','Unknown' = "lightpink",'Annexin' = "darkblue", 'PPR3B' = "red", 'Ubiquitination' = "aquamarine", 'IMDH3' = "yellow", 'Transcription Regulation' = "palevioletred2", 'Hormone Processing' = "thistle4", 'MR30' = "black", 'Collagen' = "moccasin")) + theme(axis.text.x= element_text(angle=90)) + theme(legend.title=element_blank())
+```
+
+
+
+
+
+
+
+
+
